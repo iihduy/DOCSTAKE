@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kumpulan — Galeri Foto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg: #1B1826;
+    --surface: #241F33;
+    --surface-2: #2E2842;
+    --text: #F3EEE6;
+    --text-muted: #A79FBF;
+    --accent: #D7A34E;
+    --accent-dim: #8A6E38;
+    --border: #3A3151;
+    --danger: #C97064;
+    --success: #7FA98C;
+    --radius: 3px;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  a{ color: inherit; text-decoration: none; }
+
+  .frame{ max-width: 1000px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header.top{ border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 24px; }
+  .wordmark{ font-family: 'Fraunces', serif; font-weight: 500; font-size: 34px; }
+  .wordmark span{ color: var(--accent); }
+  .tagline{ color: var(--text-muted); font-size: 13.5px; margin-top: 4px; }
+
+  .tabs{ display:flex; gap: 4px; margin-bottom: 26px; border-bottom: 1px solid var(--border); }
+  .tab-btn{
+    font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 500;
+    color: var(--text-muted); background: none; border: none;
+    padding: 10px 6px; margin-right: 20px; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: color .15s ease, border-color .15s ease;
+  }
+  .tab-btn:hover{ color: var(--text); }
+  .tab-btn.active{ color: var(--accent); border-color: var(--accent); }
+
+  .folder-grid{
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 36px;
+  }
+  .folder-card{
+    display:flex; align-items:center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 16px 18px; transition: border-color .15s ease, background .15s ease;
+  }
+  .folder-card:hover{ border-color: var(--accent-dim); background: var(--surface-2); }
+  .folder-card .icon{ font-size: 22px; color: var(--accent); flex-shrink: 0; }
+  .folder-card .info{ overflow: hidden; flex: 1; }
+  .folder-card .fname{ font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .folder-card .fnote{ font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .empty{ text-align: center; padding: 70px 20px; color: var(--text-muted); }
+  .empty .glyph{ font-family: 'Fraunces', serif; font-size: 46px; color: var(--accent-dim); margin-bottom: 10px; }
+  .empty p{ font-size: 14px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
+
+  .panel{ background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px; margin-bottom: 22px; }
+  .panel h2{ font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 4px; }
+  .panel p.hint{ color: var(--text-muted); font-size: 13px; margin: 0 0 16px; line-height: 1.55; }
+  .field{ display:flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field label{ font-size: 12.5px; color: var(--text-muted); }
+  .field input, .field textarea{
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); padding: 10px 12px; font-size: 13.5px; font-family: 'Inter', sans-serif;
+  }
+  .field textarea{ font-family: 'Courier New', monospace; font-size: 12px; }
+  .field input:focus, .field textarea:focus{ outline: none; border-color: var(--accent-dim); }
+
+  .btn{
+    font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 500; padding: 10px 18px;
+    border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text); cursor: pointer;
+  }
+  .btn:hover{ border-color: var(--accent-dim); }
+  .btn.primary{ background: var(--accent); color: #1B1826; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover{ background: #e3b566; }
+  .btn.small{ padding: 7px 12px; font-size: 12.5px; }
+
+  .manage-row{ display:flex; align-items:center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+  .manage-row:last-child{ border-bottom: none; }
+  .manage-row .icon{ color: var(--accent); font-size: 17px; }
+  .manage-row .info{ flex:1; overflow:hidden; }
+  .manage-row .fname{ font-size: 13.5px; font-weight: 500; }
+  .manage-row .fnote{ font-size: 11.5px; color: var(--text-muted); }
+  .manage-row .remove{ background: none; border: none; color: var(--danger); font-size: 12px; cursor: pointer; flex-shrink: 0; }
+
+  .codebox{
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-muted);
+    white-space: pre-wrap; word-break: break-all; margin-bottom: 12px;
+  }
+  .status-line{ font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+  .status-line.error{ color: var(--danger); }
+  .status-line.ok{ color: var(--success); }
+
+  footer.note{ margin-top: 40px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <header class="top">
+    <div class="wordmark">Kumpulan<span>.</span></div>
+    <div class="tagline">Kumpulan folder foto dari berbagai sumber — klik untuk membukanya di Google Drive.</div>
+  </header>
+
+  <!-- ===== SETUP (hanya tampil sebelum konfigurasi Firebase diisi) ===== -->
+  <div id="setupPanel" class="panel" style="display:none;">
+    <h2>Sambungkan ke Firebase</h2>
+    <p class="hint">
+      Tempel konfigurasi Firebase dari project kamu (lihat README, bagian "Ambil kode konfigurasi").
+      Ini bukan data rahasia — aman ditempel di sini, dan hanya disimpan di browser ini.
+    </p>
+    <div class="field">
+      <label for="configInput">Konfigurasi Firebase (firebaseConfig)</label>
+      <textarea id="configInput" rows="8" placeholder="{
+  apiKey: &quot;...&quot;,
+  authDomain: &quot;...&quot;,
+  projectId: &quot;...&quot;,
+  storageBucket: &quot;...&quot;,
+  messagingSenderId: &quot;...&quot;,
+  appId: &quot;...&quot;
+}"></textarea>
+    </div>
+    <button class="btn primary" id="saveConfigBtn">Simpan &amp; lanjutkan</button>
+    <div id="setupStatus" class="status-line"></div>
+  </div>
+
+  <div id="appArea" style="display:none;">
+    <div class="tabs">
+      <button class="tab-btn active" id="tabGalleryBtn">Galeri</button>
+      <button class="tab-btn" id="tabManageBtn">Tambah Folder</button>
+    </div>
+
+    <!-- ===== TAB: GALERI ===== -->
+    <div id="galleryTab">
+      <div id="galleryHost">
+        <div class="empty"><div class="glyph">◌</div><p>Memuat...</p></div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: TAMBAH FOLDER ===== -->
+    <div id="manageTab" style="display:none;">
+
+      <div class="panel" id="authPanel">
+        <h2>Masuk sebagai admin</h2>
+        <p class="hint">Hanya akun Google yang sudah diizinkan yang bisa menambah atau menghapus folder.</p>
+        <button class="btn primary" id="loginBtn">Login dengan Google</button>
+        <div id="authStatus" class="status-line"></div>
+      </div>
+
+      <div class="panel" id="firstTimePanel" style="display:none;">
+        <h2>Setup admin (sekali saja)</h2>
+        <p class="hint">
+          Akun ini belum diizinkan menulis data. Salin UID di bawah, tempelkan ke Firestore Rules
+          menggantikan <code>OWNER_UID_DISINI</code> (lihat README bagian "Batasi akses admin"), lalu publish rules-nya.
+          Setelah itu, muat ulang halaman ini dan login kembali.
+        </p>
+        <div class="codebox" id="uidOutput"></div>
+        <button class="btn small" id="copyUidBtn">Salin UID</button>
+      </div>
+
+      <div class="panel" id="addPanel" style="display:none;">
+        <h2>Tambah folder baru</h2>
+        <div class="field">
+          <label for="linkInput">Link Google Drive</label>
+          <input id="linkInput" type="text" placeholder="https://drive.google.com/drive/folders/..." />
+        </div>
+        <div class="field">
+          <label for="nameInput">Nama folder</label>
+          <input id="nameInput" type="text" placeholder="Contoh: Liburan Keluarga" />
+        </div>
+        <div class="field">
+          <label for="noteInput">Keterangan (opsional)</label>
+          <input id="noteInput" type="text" placeholder="Contoh: Dibagikan lewat WhatsApp" />
+        </div>
+        <button class="btn primary" id="addFolderBtn">Tambahkan</button>
+        <button class="btn small" id="logoutBtn" style="margin-left:8px;">Keluar</button>
+        <div id="addStatus" class="status-line"></div>
+      </div>
+
+      <div class="panel" id="manageListPanel" style="display:none;">
+        <h2>Daftar folder saat ini</h2>
+        <div id="manageList"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="note">
+    Daftar folder tersimpan di Firebase dan langsung terlihat oleh semua pengunjung. Hanya akun admin
+    yang bisa menambah atau menghapus — pengunjung lain hanya bisa melihat dan mengklik.
+  </footer>
+</div>
+
+<script>
+(function(){
+  const el = (id) => document.getElementById(id);
+  let db, auth;
+  let currentUser = null;
+  let isAdmin = false;
+
+  // ---- Firebase config bootstrap ----
+  let fbConfig = null;
+  try{ fbConfig = JSON.parse(localStorage.getItem('kumpulan_fb_config') || 'null'); }catch(e){}
+
+  function showSetup(){
+    el('setupPanel').style.display = 'block';
+    el('appArea').style.display = 'none';
+  }
+  function showApp(){
+    el('setupPanel').style.display = 'none';
+    el('appArea').style.display = 'block';
+  }
+
+  el('saveConfigBtn').addEventListener('click', () => {
+    const raw = el('configInput').value.trim();
+    const statusEl = el('setupStatus');
+    try{
+      const parsed = new Function('return (' + raw + ')')();
+      if(!parsed.apiKey || !parsed.projectId){
+        throw new Error('Konfigurasi tidak lengkap');
+      }
+      localStorage.setItem('kumpulan_fb_config', JSON.stringify(parsed));
+      fbConfig = parsed;
+      statusEl.className = 'status-line ok';
+      statusEl.textContent = 'Tersimpan.';
+      initFirebase();
+      showApp();
+    }catch(err){
+      statusEl.className = 'status-line error';
+      statusEl.textContent = 'Format konfigurasi tidak dikenali. Pastikan kamu menyalin seluruh isi kurung kurawal { ... } dari Firebase.';
+    }
+  });
+
+  function initFirebase(){
+    if(!fbConfig) return;
+    if(!firebase.apps.length){
+      firebase.initializeApp(fbConfig);
+    }
+    db = firebase.firestore();
+    auth = firebase.auth();
+    auth.onAuthStateChanged(handleAuthChange);
+    listenFolders();
+  }
+
+  // ---- Tabs ----
+  el('tabGalleryBtn').addEventListener('click', () => switchTab('gallery'));
+  el('tabManageBtn').addEventListener('click', () => switchTab('manage'));
+  function switchTab(name){
+    el('galleryTab').style.display = name === 'gallery' ? 'block' : 'none';
+    el('manageTab').style.display = name === 'manage' ? 'block' : 'none';
+    el('tabGalleryBtn').classList.toggle('active', name === 'gallery');
+    el('tabManageBtn').classList.toggle('active', name === 'manage');
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ---- Gallery (public read) ----
+  let folderCache = [];
+
+  function listenFolders(){
+    db.collection('folders').orderBy('createdAt', 'asc').onSnapshot(
+      (snapshot) => {
+        folderCache = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderGallery();
+        renderManageList();
+      },
+      (err) => {
+        console.error(err);
+        el('galleryHost').innerHTML = `<div class="empty"><div class="glyph">!</div><p>Gagal memuat data. Periksa kembali konfigurasi Firebase dan aturan akses (Firestore Rules).</p></div>`;
+      }
+    );
+  }
+
+  function renderGallery(){
+    const host = el('galleryHost');
+    if(folderCache.length === 0){
+      host.innerHTML = `<div class="empty"><div class="glyph">◌</div><p>Belum ada folder. Masuk sebagai admin di tab "Tambah Folder" untuk menambahkan link pertama.</p></div>`;
+      return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'folder-grid';
+    folderCache.forEach(f => {
+      const a = document.createElement('a');
+      a.className = 'folder-card';
+      a.href = f.link; a.target = '_blank'; a.rel = 'noopener';
+      a.innerHTML = `
+        <div class="icon">▤</div>
+        <div class="info">
+          <div class="fname">${escapeHtml(f.name)}</div>
+          ${f.note ? `<div class="fnote">${escapeHtml(f.note)}</div>` : ''}
+        </div>`;
+      grid.appendChild(a);
+    });
+    host.innerHTML = '';
+    host.appendChild(grid);
+  }
+
+  // ---- Auth ----
+  el('loginBtn').addEventListener('click', () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(err => {
+      el('authStatus').className = 'status-line error';
+      el('authStatus').textContent = 'Gagal login: ' + err.message;
+    });
+  });
+
+  el('logoutBtn').addEventListener('click', () => auth.signOut());
+
+  function handleAuthChange(user){
+    currentUser = user;
+    if(!user){
+      el('authPanel').style.display = 'block';
+      el('firstTimePanel').style.display = 'none';
+      el('addPanel').style.display = 'none';
+      el('manageListPanel').style.display = 'none';
+      return;
+    }
+    el('authPanel').style.display = 'none';
+    // Coba tulis dokumen percobaan untuk mengecek apakah akun ini diizinkan (admin).
+    checkAdminAccess();
+  }
+
+  function checkAdminAccess(){
+    // Cara paling sederhana: coba baca collection khusus, atau langsung coba tampilkan form
+    // dan biarkan Firestore Rules yang menolak saat benar-benar menulis jika bukan admin.
+    el('uidOutput').textContent = currentUser.uid;
+    el('firstTimePanel').style.display = 'block';
+    el('addPanel').style.display = 'block';
+    el('manageListPanel').style.display = 'block';
+  }
+
+  el('copyUidBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(currentUser.uid).then(() => {
+      el('copyUidBtn').textContent = 'Tersalin ✓';
+      setTimeout(() => { el('copyUidBtn').textContent = 'Salin UID'; }, 1800);
+    });
+  });
+
+  // ---- Add / delete folders ----
+  el('addFolderBtn').addEventListener('click', () => {
+    const link = el('linkInput').value.trim();
+    const name = el('nameInput').value.trim();
+    const note = el('noteInput').value.trim();
+    const statusEl = el('addStatus');
+
+    if(!link || !name){
+      statusEl.className = 'status-line error';
+      statusEl.textContent = 'Isi link dan nama folder terlebih dahulu.';
+      return;
+    }
+    if(!/^https?:\/\//.test(link)){
+      statusEl.className = 'status-line error';
+      statusEl.textContent = 'Link harus diawali https://';
+      return;
+    }
+
+    statusEl.className = 'status-line';
+    statusEl.textContent = 'Menyimpan...';
+
+    db.collection('folders').add({
+      link, name, note,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      addedBy: currentUser.uid
+    }).then(() => {
+      el('linkInput').value = '';
+      el('nameInput').value = '';
+      el('noteInput').value = '';
+      statusEl.className = 'status-line ok';
+      statusEl.textContent = 'Folder ditambahkan.';
+    }).catch(err => {
+      statusEl.className = 'status-line error';
+      if(err.code === 'permission-denied'){
+        statusEl.textContent = 'Akun ini belum diizinkan sebagai admin. Ikuti langkah "Setup admin" di atas.';
+        el('firstTimePanel').style.display = 'block';
+      }else{
+        statusEl.textContent = 'Gagal menyimpan: ' + err.message;
+      }
+    });
+  });
+
+  function renderManageList(){
+    const listHost = el('manageList');
+    if(folderCache.length === 0){
+      listHost.innerHTML = `<p class="hint" style="margin:0;">Belum ada folder ditambahkan.</p>`;
+      return;
+    }
+    listHost.innerHTML = '';
+    folderCache.forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'manage-row';
+      row.innerHTML = `
+        <div class="icon">▤</div>
+        <div class="info">
+          <div class="fname">${escapeHtml(f.name)}</div>
+          ${f.note ? `<div class="fnote">${escapeHtml(f.note)}</div>` : ''}
+        </div>
+        <button class="remove" data-id="${f.id}">Hapus</button>
+      `;
+      listHost.appendChild(row);
+    });
+    listHost.querySelectorAll('button[data-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        db.collection('folders').doc(btn.dataset.id).delete().catch(err => {
+          alert(err.code === 'permission-denied'
+            ? 'Akun ini belum diizinkan menghapus data.'
+            : 'Gagal menghapus: ' + err.message);
+        });
+      });
+    });
+  }
+
+  // ---- Boot ----
+  if(fbConfig){
+    showApp();
+    initFirebase();
+  }else{
+    showSetup();
+  }
+})();
+</script>
+
+</body>
+</html>
