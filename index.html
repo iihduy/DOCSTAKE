@@ -66,6 +66,35 @@
   .folder-card .fname{ font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .folder-card .fnote{ font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+  .photo-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 3px;
+  }
+  .photo-cell{
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: var(--surface-2);
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .photo-cell img{
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity .25s ease;
+  }
+  .photo-cell img.loaded{ opacity: 1; }
+  .photo-cell .pname{
+    position: absolute; left:0; right:0; bottom:0;
+    padding: 6px 8px; font-size: 11px; color: #fff;
+    background: linear-gradient(transparent, rgba(0,0,0,.65));
+    opacity: 0; transition: opacity .15s ease;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .photo-cell:hover .pname{ opacity: 1; }
+
   .empty{ text-align: center; padding: 70px 20px; color: var(--text-muted); }
   .empty .glyph{ font-family: 'Fraunces', serif; font-size: 46px; color: var(--accent-dim); margin-bottom: 10px; }
   .empty p{ font-size: 14px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
@@ -139,6 +168,10 @@
   appId: &quot;...&quot;
 }"></textarea>
     </div>
+    <div class="field">
+      <label for="driveKeyInput">Google Drive API Key</label>
+      <input id="driveKeyInput" type="text" placeholder="AIza..." />
+    </div>
     <button class="btn primary" id="saveConfigBtn">Simpan &amp; lanjutkan</button>
     <div id="setupStatus" class="status-line"></div>
   </div>
@@ -156,20 +189,21 @@
       </div>
     </div>
 
-    <!-- ===== VIEWER: isi folder ditampilkan di dalam halaman ===== -->
+    <!-- ===== VIEWER: isi folder ditampilkan di dalam halaman, tampilan sendiri ===== -->
     <div id="viewerTab" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
         <button class="btn small" id="backToGalleryBtn">← Kembali ke Galeri</button>
         <a id="openInDriveLink" href="#" target="_blank" rel="noopener" class="btn small">Buka di Google Drive ↗</a>
       </div>
-      <h2 id="viewerFolderName" style="font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 12px;"></h2>
-      <div id="viewerFrameWrap" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface);">
-        <iframe id="viewerFrame" src="" style="width:100%;height:70vh;border:none;display:block;"></iframe>
-      </div>
-      <p class="hint" style="margin-top:10px;">
-        Kalau area di atas meminta akses atau tidak menampilkan foto, folder ini belum disetel
-        "Anyone with the link" di Google Drive.
-      </p>
+      <h2 id="viewerFolderName" style="font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 16px;"></h2>
+      <div id="viewerGrid"></div>
+    </div>
+
+    <!-- Lightbox untuk lihat foto ukuran besar, tetap di halaman ini -->
+    <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(10,8,16,.92);align-items:center;justify-content:center;z-index:50;padding:30px;">
+      <div id="lightboxClose" style="position:absolute;top:22px;right:28px;color:var(--text);font-size:14px;cursor:pointer;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:6px 12px;">Tutup ✕</div>
+      <img id="lightboxImg" src="" style="max-width:100%;max-height:82vh;border-radius:4px;" />
+      <div id="lightboxMeta" style="position:absolute;bottom:26px;left:0;right:0;text-align:center;color:var(--text-muted);font-size:12.5px;"></div>
     </div>
 
     <!-- ===== TAB: TAMBAH FOLDER ===== -->
@@ -179,6 +213,7 @@
         <h2>Masuk sebagai admin</h2>
         <p class="hint">Hanya akun Google yang sudah diizinkan yang bisa menambah atau menghapus folder.</p>
         <button class="btn primary" id="loginBtn">Login dengan Google</button>
+        <button class="btn small" id="openSettingsBtn" style="margin-left:8px;">Ubah Konfigurasi</button>
         <div id="authStatus" class="status-line"></div>
       </div>
 
@@ -236,10 +271,15 @@
   // ---- Firebase config bootstrap ----
   let fbConfig = null;
   try{ fbConfig = JSON.parse(localStorage.getItem('kumpulan_fb_config') || 'null'); }catch(e){}
+  let driveApiKey = localStorage.getItem('kumpulan_drive_api_key') || '';
 
   function showSetup(){
     el('setupPanel').style.display = 'block';
     el('appArea').style.display = 'none';
+    el('driveKeyInput').value = driveApiKey;
+    if(fbConfig){
+      el('configInput').value = JSON.stringify(fbConfig, null, 2);
+    }
   }
   function showApp(){
     el('setupPanel').style.display = 'none';
@@ -248,6 +288,7 @@
 
   el('saveConfigBtn').addEventListener('click', () => {
     const raw = el('configInput').value.trim();
+    const keyRaw = el('driveKeyInput').value.trim();
     const statusEl = el('setupStatus');
     try{
       const parsed = new Function('return (' + raw + ')')();
@@ -256,6 +297,8 @@
       }
       localStorage.setItem('kumpulan_fb_config', JSON.stringify(parsed));
       fbConfig = parsed;
+      driveApiKey = keyRaw;
+      localStorage.setItem('kumpulan_drive_api_key', driveApiKey);
       statusEl.className = 'status-line ok';
       statusEl.textContent = 'Tersimpan.';
       initFirebase();
@@ -297,20 +340,76 @@
   }
 
   function openViewer(folder){
-    const id = extractFolderId(folder.link);
     el('galleryTab').style.display = 'none';
     el('manageTab').style.display = 'none';
     el('viewerTab').style.display = 'block';
     el('viewerFolderName').textContent = folder.name;
     el('openInDriveLink').href = folder.link;
-    if(id){
-      el('viewerFrame').src = `https://drive.google.com/embeddedfolderview?id=${id}#grid`;
-    }else{
-      el('viewerFrame').src = 'about:blank';
-    }
+    loadFolderPhotos(folder);
   }
 
   el('backToGalleryBtn').addEventListener('click', () => switchTab('gallery'));
+
+  async function loadFolderPhotos(folder){
+    const grid = el('viewerGrid');
+    const id = extractFolderId(folder.link);
+    if(!driveApiKey){
+      grid.innerHTML = `<div class="empty"><div class="glyph">!</div><p>Google Drive API Key belum diisi. Buka tab Tambah Folder untuk setup, atau lihat README.</p></div>`;
+      return;
+    }
+    if(!id){
+      grid.innerHTML = `<div class="empty"><div class="glyph">!</div><p>Link folder tidak dikenali.</p></div>`;
+      return;
+    }
+    grid.innerHTML = `<div class="empty"><div class="glyph">◌</div><p>Memuat foto...</p></div>`;
+    try{
+      const q = `'${id}' in parents and mimeType contains 'image/' and trashed = false`;
+      const params = new URLSearchParams({
+        q, key: driveApiKey,
+        fields: 'files(id,name)',
+        pageSize: '200'
+      });
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+      const data = await res.json();
+      if(data.error){
+        throw new Error(data.error.message || 'Gagal mengambil data');
+      }
+      const files = data.files || [];
+      if(files.length === 0){
+        grid.innerHTML = `<div class="empty"><div class="glyph">◌</div><p>Folder ini kosong, atau belum disetel "Anyone with the link" di Google Drive sehingga tidak bisa dibaca publik.</p></div>`;
+        return;
+      }
+      const g = document.createElement('div');
+      g.className = 'photo-grid';
+      files.forEach(f => {
+        const cell = document.createElement('div');
+        cell.className = 'photo-cell';
+        const img = document.createElement('img');
+        img.src = `https://drive.google.com/thumbnail?id=${f.id}&sz=w400`;
+        img.onload = () => img.classList.add('loaded');
+        const name = document.createElement('div');
+        name.className = 'pname';
+        name.textContent = f.name;
+        cell.appendChild(img);
+        cell.appendChild(name);
+        cell.addEventListener('click', () => openLightbox(f));
+        g.appendChild(cell);
+      });
+      grid.innerHTML = '';
+      grid.appendChild(g);
+    }catch(err){
+      console.error(err);
+      grid.innerHTML = `<div class="empty"><div class="glyph">!</div><p>Gagal memuat foto. Pastikan folder disetel "Anyone with the link" dan Drive API Key sudah benar.</p></div>`;
+    }
+  }
+
+  function openLightbox(file){
+    el('lightboxImg').src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1600`;
+    el('lightboxMeta').textContent = file.name;
+    el('lightbox').style.display = 'flex';
+  }
+  el('lightboxClose').addEventListener('click', () => { el('lightbox').style.display = 'none'; });
+  el('lightbox').addEventListener('click', (e) => { if(e.target.id === 'lightbox') el('lightbox').style.display = 'none'; });
 
   function escapeHtml(s){
     const d = document.createElement('div');
@@ -361,6 +460,8 @@
   }
 
   // ---- Auth ----
+  el('openSettingsBtn').addEventListener('click', showSetup);
+
   el('loginBtn').addEventListener('click', () => {
     const provider = new firebase.auth.GoogleAuthProvider();
     auth.signInWithPopup(provider).catch(err => {
