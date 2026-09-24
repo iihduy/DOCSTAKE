@@ -94,6 +94,16 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .photo-cell:hover .pname{ opacity: 1; }
+  .photo-cell .play-badge{
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(10,8,16,.55);
+    display:flex; align-items:center; justify-content:center;
+    color: #fff; font-size: 16px;
+    pointer-events: none;
+  }
 
   .empty{ text-align: center; padding: 70px 20px; color: var(--text-muted); }
   .empty .glyph{ font-family: 'Fraunces', serif; font-size: 46px; color: var(--accent-dim); margin-bottom: 10px; }
@@ -204,7 +214,11 @@
     <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(10,8,16,.92);align-items:center;justify-content:center;z-index:50;padding:30px;">
       <div id="lightboxClose" style="position:absolute;top:22px;right:28px;color:var(--text);font-size:14px;cursor:pointer;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:6px 12px;">Tutup ✕</div>
       <img id="lightboxImg" src="" style="max-width:100%;max-height:82vh;border-radius:4px;" />
-      <div id="lightboxMeta" style="position:absolute;bottom:26px;left:0;right:0;text-align:center;color:var(--text-muted);font-size:12.5px;"></div>
+      <video id="lightboxVideo" controls style="max-width:100%;max-height:82vh;border-radius:4px;display:none;"></video>
+      <div id="lightboxMeta" style="position:absolute;bottom:26px;left:0;right:0;text-align:center;color:var(--text-muted);font-size:12.5px;">
+        <div id="lightboxName" style="margin-bottom:8px;"></div>
+        <a id="lightboxDownload" href="#" class="btn small" download style="display:inline-block;">⬇ Unduh</a>
+      </div>
     </div>
 
     <!-- ===== TAB: TAMBAH FOLDER ===== -->
@@ -367,10 +381,10 @@
     }
     grid.innerHTML = `<div class="empty"><div class="glyph">◌</div><p>Memuat foto...</p></div>`;
     try{
-      const q = `'${id}' in parents and mimeType contains 'image/' and trashed = false`;
+      const q = `'${id}' in parents and (mimeType contains 'image/' or mimeType contains 'video/') and trashed = false`;
       const params = new URLSearchParams({
         q, key: driveApiKey,
-        fields: 'files(id,name)',
+        fields: 'files(id,name,mimeType)',
         pageSize: '200'
       });
       const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
@@ -388,13 +402,20 @@
       files.forEach(f => {
         const cell = document.createElement('div');
         cell.className = 'photo-cell';
+        const isVideo = (f.mimeType || '').startsWith('video/');
         const img = document.createElement('img');
         img.src = `https://drive.google.com/thumbnail?id=${f.id}&sz=w400`;
         img.onload = () => img.classList.add('loaded');
+        cell.appendChild(img);
+        if(isVideo){
+          const badge = document.createElement('div');
+          badge.className = 'play-badge';
+          badge.textContent = '▶';
+          cell.appendChild(badge);
+        }
         const name = document.createElement('div');
         name.className = 'pname';
         name.textContent = f.name;
-        cell.appendChild(img);
         cell.appendChild(name);
         cell.addEventListener('click', () => openLightbox(f));
         g.appendChild(cell);
@@ -408,12 +429,37 @@
   }
 
   function openLightbox(file){
-    el('lightboxImg').src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1600`;
-    el('lightboxMeta').textContent = file.name;
+    const isVideo = (file.mimeType || '').startsWith('video/');
+    const img = el('lightboxImg');
+    const video = el('lightboxVideo');
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${file.id}`;
+
+    if(isVideo){
+      img.style.display = 'none';
+      img.src = '';
+      video.style.display = 'block';
+      video.src = downloadUrl;
+    }else{
+      video.style.display = 'none';
+      video.pause();
+      video.src = '';
+      img.style.display = 'block';
+      img.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1600`;
+    }
+
+    el('lightboxName').textContent = file.name;
+    el('lightboxDownload').href = downloadUrl;
+    el('lightboxDownload').setAttribute('download', file.name || '');
     el('lightbox').style.display = 'flex';
   }
-  el('lightboxClose').addEventListener('click', () => { el('lightbox').style.display = 'none'; });
-  el('lightbox').addEventListener('click', (e) => { if(e.target.id === 'lightbox') el('lightbox').style.display = 'none'; });
+  function closeLightbox(){
+    el('lightbox').style.display = 'none';
+    const video = el('lightboxVideo');
+    video.pause();
+    video.src = '';
+  }
+  el('lightboxClose').addEventListener('click', closeLightbox);
+  el('lightbox').addEventListener('click', (e) => { if(e.target.id === 'lightbox') closeLightbox(); });
 
   function escapeHtml(s){
     const d = document.createElement('div');
