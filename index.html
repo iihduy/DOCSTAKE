@@ -173,6 +173,7 @@
       <input id="driveKeyInput" type="text" placeholder="AIza..." />
     </div>
     <button class="btn primary" id="saveConfigBtn">Simpan &amp; lanjutkan</button>
+    <button class="btn small" id="cancelSetupBtn" style="margin-left:8px;">Batal</button>
     <div id="setupStatus" class="status-line"></div>
   </div>
 
@@ -209,11 +210,14 @@
     <!-- ===== TAB: TAMBAH FOLDER ===== -->
     <div id="manageTab" style="display:none;">
 
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn small" id="openSettingsBtn">⚙ Ubah Konfigurasi</button>
+      </div>
+
       <div class="panel" id="authPanel">
         <h2>Masuk sebagai admin</h2>
         <p class="hint">Hanya akun Google yang sudah diizinkan yang bisa menambah atau menghapus folder.</p>
         <button class="btn primary" id="loginBtn">Login dengan Google</button>
-        <button class="btn small" id="openSettingsBtn" style="margin-left:8px;">Ubah Konfigurasi</button>
         <div id="authStatus" class="status-line"></div>
       </div>
 
@@ -461,6 +465,9 @@
 
   // ---- Auth ----
   el('openSettingsBtn').addEventListener('click', showSetup);
+  el('cancelSetupBtn').addEventListener('click', () => {
+    if(fbConfig){ showApp(); }
+  });
 
   el('loginBtn').addEventListener('click', () => {
     const provider = new firebase.auth.GoogleAuthProvider();
