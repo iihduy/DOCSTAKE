@@ -148,6 +148,44 @@
   .status-line.error{ color: var(--danger); }
   .status-line.ok{ color: var(--success); }
 
+  .sidebar{
+    position: fixed;
+    top: 0; right: 0;
+    height: 100vh;
+    width: min(420px, 92vw);
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    z-index: 60;
+    padding: 24px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform .25s ease;
+  }
+  .sidebar.open{ transform: translateX(0); }
+  .sidebar-backdrop{
+    position: fixed; inset: 0;
+    background: rgba(10,8,16,.6);
+    z-index: 55;
+    display: none;
+  }
+  .sidebar-backdrop.open{ display: block; }
+  .admin-fab{
+    position: fixed;
+    bottom: 22px; right: 22px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 17px;
+    cursor: pointer;
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 45;
+  }
+  .admin-fab.visible{ display: flex; }
+  .admin-fab:hover{ color: var(--accent); border-color: var(--accent-dim); }
+
   footer.note{ margin-top: 40px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 16px; line-height: 1.6; }
 </style>
 </head>
@@ -156,8 +194,8 @@
 <div class="frame">
 
   <header class="top">
-    <div class="wordmark">Kumpulan<span>.</span></div>
-    <div class="tagline">Kumpulan folder foto dari berbagai sumber — klik untuk membukanya di Google Drive.</div>
+    <div class="wordmark">Stakeholder Hub<span>.</span></div>
+    <div class="tagline">A curated visual record of our strategic collaborations.</div>
   </header>
 
   <!-- ===== SETUP (hanya tampil sebelum konfigurasi Firebase diisi) ===== -->
@@ -188,12 +226,8 @@
   </div>
 
   <div id="appArea" style="display:none;">
-    <div class="tabs">
-      <button class="tab-btn active" id="tabGalleryBtn">Galeri</button>
-      <button class="tab-btn" id="tabManageBtn">Tambah Folder</button>
-    </div>
 
-    <!-- ===== TAB: GALERI ===== -->
+    <!-- ===== GALERI (tampilan utama) ===== -->
     <div id="galleryTab">
       <div id="galleryHost">
         <div class="empty"><div class="glyph">◌</div><p>Memuat...</p></div>
@@ -221,8 +255,14 @@
       </div>
     </div>
 
-    <!-- ===== TAB: TAMBAH FOLDER ===== -->
-    <div id="manageTab" style="display:none;">
+    <!-- ===== SIDEBAR ADMIN (tersembunyi, dibuka lewat tombol ⚙) ===== -->
+    <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+    <div id="manageTab" class="sidebar">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <h2 style="font-family:'Fraunces',serif;font-weight:500;font-size:19px;margin:0;">Kelola Folder</h2>
+        <button class="btn small" id="closeSidebarBtn">✕</button>
+      </div>
 
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
         <button class="btn small" id="openSettingsBtn">⚙ Ubah Konfigurasi</button>
@@ -274,10 +314,11 @@
   </div>
 
   <footer class="note">
-    Daftar folder tersimpan di Firebase dan langsung terlihat oleh semua pengunjung. Hanya akun admin
-    yang bisa menambah atau menghapus — pengunjung lain hanya bisa melihat dan mengklik.
+    Curated by Stakeholder Management.
   </footer>
 </div>
+
+<button id="adminFabBtn" class="admin-fab" title="Kelola Folder">⚙</button>
 
 <script>
 (function(){
@@ -294,6 +335,7 @@
   function showSetup(){
     el('setupPanel').style.display = 'block';
     el('appArea').style.display = 'none';
+    el('adminFabBtn').classList.remove('visible');
     el('driveKeyInput').value = driveApiKey;
     if(fbConfig){
       el('configInput').value = JSON.stringify(fbConfig, null, 2);
@@ -302,6 +344,7 @@
   function showApp(){
     el('setupPanel').style.display = 'none';
     el('appArea').style.display = 'block';
+    el('adminFabBtn').classList.add('visible');
   }
 
   el('saveConfigBtn').addEventListener('click', () => {
@@ -338,16 +381,24 @@
     listenFolders();
   }
 
-  // ---- Tabs ----
-  el('tabGalleryBtn').addEventListener('click', () => switchTab('gallery'));
-  el('tabManageBtn').addEventListener('click', () => switchTab('manage'));
+  // ---- Gallery / Viewer switching ----
   function switchTab(name){
     el('galleryTab').style.display = name === 'gallery' ? 'block' : 'none';
-    el('manageTab').style.display = name === 'manage' ? 'block' : 'none';
-    el('viewerTab').style.display = 'none';
-    el('tabGalleryBtn').classList.toggle('active', name === 'gallery');
-    el('tabManageBtn').classList.toggle('active', name === 'manage');
+    el('viewerTab').style.display = name === 'viewer' ? 'block' : 'none';
   }
+
+  // ---- Admin sidebar ----
+  function openSidebar(){
+    el('manageTab').classList.add('open');
+    el('sidebarBackdrop').classList.add('open');
+  }
+  function closeSidebar(){
+    el('manageTab').classList.remove('open');
+    el('sidebarBackdrop').classList.remove('open');
+  }
+  el('adminFabBtn').addEventListener('click', openSidebar);
+  el('closeSidebarBtn').addEventListener('click', closeSidebar);
+  el('sidebarBackdrop').addEventListener('click', closeSidebar);
 
   function extractFolderId(link){
     const m = link.match(/\/folders\/([a-zA-Z0-9_-]+)/);
@@ -358,9 +409,7 @@
   }
 
   function openViewer(folder){
-    el('galleryTab').style.display = 'none';
-    el('manageTab').style.display = 'none';
-    el('viewerTab').style.display = 'block';
+    switchTab('viewer');
     el('viewerFolderName').textContent = folder.name;
     el('openInDriveLink').href = folder.link;
     loadFolderPhotos(folder);
